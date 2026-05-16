@@ -116,13 +116,40 @@ COMMITMENT_NEGATIVE = [
     "等着吧", "不一定", "不敢保证", "说不准", "看情况", "到时候再说",
 ]
 
+# 语气词/噪声词过滤器（剔除高频无意义词，避免干扰评分）
+NOISE_WORDS = {
+    # 语气词
+    "嗯", "哦", "啊", "呢", "吧", "哈", "呀", "嘛", "哎", "唉", "喂",
+    "嗯嗯", "哦哦", "啊啊", "哈哈", "呵呵", "嘿嘿",
+    # 客服用语填充词
+    "收到", "好的", "好滴", "好哒", "好嘞", "行", "可以", "可以的", "没问题",
+    "谢谢", "感谢", "不客气", "没事", "没关系",
+    "您好", "你好", "在的", "在呢", "亲", "亲亲", "亲您好",
+    # 模糊表态词
+    "知道了", "收到啦", "明白了", "清楚", "晓得了", "了解了",
+    "知道", "明白", "懂", "懂了",
+    # 标点/符号类噪声
+    "~", "~~", "~~~",
+}
+
+
+def _filter_noise(text):
+    """从文本中移除噪声/语气词，返回干净文本"""
+    if not isinstance(text, str):
+        return text
+    clean = text
+    for word in sorted(NOISE_WORDS, key=len, reverse=True):  # 长词优先替换
+        clean = clean.replace(word, " ")
+    return clean
+
 
 def rule_based_evaluate(conversation):
     """基于规则引擎的对话质量评估（无需API）"""
     if not isinstance(conversation, str) or not conversation.strip():
         return {dim: {"score": 3, "reason": "对话内容不足，默认评分"} for dim in EVALUATION_DIMENSIONS}
 
-    text = conversation.lower()
+    # 先过滤噪声词，避免语气词干扰评分
+    text = _filter_noise(conversation.lower())
 
     scores = {}
     reasons = {}
