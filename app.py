@@ -788,9 +788,18 @@ def main():
     sel = show_sidebar()
     cfg = MODELS[sel]
 
-    mode = st.radio("评估模式", ["📝 单条评估", "📊 批量评估"], horizontal=True, key="eval_mode")
+    mode_options = {"single": "📝 单条评估", "batch": "📊 批量评估"}
+    if st.session_state.get("eval_mode") not in mode_options:
+        st.session_state["eval_mode"] = "single"
+    mode = st.radio(
+        "评估模式",
+        list(mode_options.keys()),
+        format_func=lambda key: mode_options[key],
+        horizontal=True,
+        key="eval_mode",
+    )
 
-    if mode == "📝 单条评估":
+    if mode == "single":
         st.info("面试演示建议：先加载一段示例对话，展示四维评分和可解释改进建议；批量模式可展示客服表现对比。")
         if st.button("🎲 填入高分示例对话", width='stretch'):
             st.session_state["single_conv"] = generate_samples()[0]["text"]
