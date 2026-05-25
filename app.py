@@ -764,8 +764,8 @@ def main():
 
     c1, c2 = st.columns([3, 1])
     with c1:
-        st.title("🎧 AI客服对话质检系统")
-        st.caption("多引擎架构 | 关键词规则 + AI 深度评估 | 4维评分 + 改进建议")
+        st.title("🎧 客服对话质量评估")
+        st.caption("默认规则引擎无需 API Key | 识别需求 · 有效共情 · 达成一致 · 承诺回复")
     with c2:
         st.metric("版本", "v3.2", delta="对话洞察增强")
         st.metric("本地AI", "就绪" if (check_ollama_available() and check_ollama_model()) else "待启动")
@@ -777,7 +777,11 @@ def main():
     mode = st.radio("评估模式", ["📝 单条评估", "📊 批量评估"], horizontal=True, key="eval_mode")
 
     if mode == "📝 单条评估":
-        conv_text = st.text_area("粘贴客服对话文本", height=200, placeholder="消费者：......\n客服：......", key="single_conv")
+        st.info("面试演示建议：先加载一段示例对话，展示四维评分和可解释改进建议；批量模式可展示客服表现对比。")
+        if st.button("🎲 填入高分示例对话", use_container_width=True):
+            st.session_state["single_conv"] = generate_samples()[0]["text"]
+            st.rerun()
+        conv_text = st.text_area("粘贴客服对话文本", height=220, placeholder="消费者：......\n客服：......", key="single_conv")
         if st.button("🔍 开始评估", type="primary", disabled=not conv_text):
             client = None if cfg["sdk_type"] == "rule" else get_client(sel)
             show_single(conv_text, sel, client)
