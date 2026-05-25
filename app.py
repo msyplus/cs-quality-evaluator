@@ -153,11 +153,18 @@ def get_client(model_key):
     if cfg["sdk_type"] == "openai":
         from openai import OpenAI
         if not cfg["key_required"]:
-            return OpenAI(base_url=cfg["base_url"], api_key="ollama")
+            if not check_ollama_available() or not check_ollama_model(cfg["model_id"]):
+                return None
+            return OpenAI(
+                base_url=cfg["base_url"],
+                api_key="ollama",
+                timeout=20.0,
+                max_retries=0,
+            )
         key = os.getenv(cfg["key_name"], "") or st.session_state.get(f"key_{model_key}", "")
         if not key:
             return None
-        return OpenAI(base_url=cfg["base_url"], api_key=key)
+        return OpenAI(base_url=cfg["base_url"], api_key=key, timeout=30.0, max_retries=0)
     elif cfg["sdk_type"] == "gemini":
         import google.generativeai as genai
         key = os.getenv("GEMINI_API_KEY", "") or st.session_state.get("key_gemini", "")
@@ -168,6 +175,7 @@ def get_client(model_key):
     return None
 
 
+@st.cache_data(ttl=30, show_spinner=False)
 def check_ollama_available():
     import socket
     try:
@@ -180,10 +188,16 @@ def check_ollama_available():
         return False
 
 
+@st.cache_data(ttl=30, show_spinner=False)
 def check_ollama_model(model_id="qwen2.5:3b"):
     try:
         from openai import OpenAI
-        c = OpenAI(base_url="http://localhost:11434/v1", api_key="ollama")
+        c = OpenAI(
+            base_url="http://localhost:11434/v1",
+            api_key="ollama",
+            timeout=2.0,
+            max_retries=0,
+        )
         return model_id in [m.id for m in c.models.list()]
     except Exception:
         return False
@@ -461,7 +475,7 @@ def show_rules_config():
         st.session_state[nk] = nv
         NOISE_WORDS.clear()
         NOISE_WORDS.update(x.strip() for x in nv.replace(",", "、").split("、") if x.strip())
-        if st.button("🔄 恢复默认", use_container_width=True):
+        if st.button("🔄 恢复默认", width='stretch'):
             for key in list(st.session_state.keys()):
                 if key.startswith(("pos_", "neg_", "noise")):
                     st.session_state.pop(key, None)
@@ -477,7 +491,7 @@ def show_issue_entry():
             it = st.selectbox("类型", ["评分不准", "Bug", "建议", "数据问题", "界面", "其他"], key="cs_issue_ty")
         with c2:
             iu = st.selectbox("紧急度", ["一般", "重要", "紧急"], key="cs_issue_ur")
-        if st.button("提交", key="cs_issue_sub", type="primary", use_container_width=True):
+        if st.button("提交", key="cs_issue_sub", type="primary", width='stretch'):
             if not t.strip():
                 st.error("请填写标题")
             else:
@@ -492,11 +506,11 @@ def show_sidebar():
         sel = show_model_selector()
         st.divider()
         st.subheader("📥 快速体验")
-        if st.button("🎲 加载20段示例对话", type="primary", use_container_width=True):
+        if st.button("🎲 加载20段示例对话", type="primary", width='stretch'):
             st.session_state["cs_convos"] = generate_samples()
             st.rerun()
         if st.session_state.get("cs_convos") is not None:
-            if st.button("🗑️ 清除数据", use_container_width=True):
+            if st.button("🗑️ 清除数据", width='stretch'):
                 st.session_state["cs_convos"] = None
                 st.session_state["cs_results"] = None
                 st.rerun()
@@ -550,7 +564,7 @@ def show_single(conv_text, model_key, client):
         fig.add_trace(go.Scatterpolar(r=[4, 4, 4, 4], theta=cats, fill="none", name="优秀线",
                                       line=dict(color="#90A4AE", width=1, dash="dash")))
         fig.update_layout(polar=dict(radialaxis=dict(range=[0, 5])), height=350, margin=dict(l=40, r=40, t=20, b=20))
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width='stretch')
 
     with col2:
         # 规则结果
@@ -667,7 +681,7 @@ def show_batch(conversations, model_key, client):
 
         with t1:
             dc = [c for c in ["id", "agent", "总分", "识别需求", "有效共情", "达成一致", "承诺回复", "Badcase"] if c in dr.columns]
-            st.dataframe(dr[dc], use_container_width=True, height=350)
+            st.dataframe(dr[dc], width='stretch', height=350)
 
         with t2:
             st.subheader("各维度平均分")
@@ -675,14 +689,14 @@ def show_batch(conversations, model_key, client):
             fig = px.bar(x=list(davg.keys()), y=list(davg.values()), title="维度平均分",
                          color=list(davg.values()), color_continuous_scale="RdYlGn", range_color=[1, 5])
             fig.update_layout(yaxis_range=[0, 5])
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width='stretch')
 
             if "agent" in dr.columns:
                 ascores = dr.groupby("agent")["总分"].mean().sort_values(ascending=False)
                 fig2 = px.bar(x=ascores.index, y=ascores.values, title="客服平均总分配对",
                               color=ascores.values, color_continuous_scale="RdYlGn", range_color=[1, 5])
                 fig2.update_layout(yaxis_range=[0, 5])
-                st.plotly_chart(fig2, use_container_width=True)
+                st.plotly_chart(fig2, width='stretch')
 
         with t3:
             st.subheader("客服能力雷达对比")
@@ -700,7 +714,7 @@ def show_batch(conversations, model_key, client):
                                                      fill="none", name="优秀线",
                                                      line=dict(color="#90A4AE", width=1, dash="dash")))
                     fig_r.update_layout(polar=dict(radialaxis=dict(range=[0, 5])), height=400)
-                    st.plotly_chart(fig_r, use_container_width=True)
+                    st.plotly_chart(fig_r, width='stretch')
                     # 对比表
                     st.markdown("**各客服优劣势对比**")
                     comp_data = []
@@ -714,7 +728,7 @@ def show_batch(conversations, model_key, client):
                         row_d["优势"] = max(dim_means, key=dim_means.get) if dim_means else "-"
                         row_d["短板"] = min(dim_means, key=dim_means.get) if dim_means else "-"
                         comp_data.append(row_d)
-                    st.dataframe(pd.DataFrame(comp_data), use_container_width=True)
+                    st.dataframe(pd.DataFrame(comp_data), width='stretch')
             else:
                 st.info("需要多个客服数据才能对比")
 
@@ -778,7 +792,7 @@ def main():
 
     if mode == "📝 单条评估":
         st.info("面试演示建议：先加载一段示例对话，展示四维评分和可解释改进建议；批量模式可展示客服表现对比。")
-        if st.button("🎲 填入高分示例对话", use_container_width=True):
+        if st.button("🎲 填入高分示例对话", width='stretch'):
             st.session_state["single_conv"] = generate_samples()[0]["text"]
             st.rerun()
         conv_text = st.text_area("粘贴客服对话文本", height=220, placeholder="消费者：......\n客服：......", key="single_conv")
